@@ -4,8 +4,8 @@
  * Extended type definitions for the rendering pipeline.
  */
 
-/** Supported rendering canvas sizes */
-export type CanvasSize = 32 | 48 | 64 | 128 | 256 | 512
+/** Supported rendering canvas sizes (or any positive integer) */
+export type CanvasSize = number
 
 /** Layer definition for compositing */
 export interface LayerDef {

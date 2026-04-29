@@ -2,8 +2,8 @@
  * @pixabots/extended — Compositor
  *
  * Generic layer compositor using Sharp.
- * Takes a list of layers (each referencing a PNG file) and composites them
- * onto a canvas of configurable size.
+ * Supports source assets of ANY size — automatically detects native dimensions
+ * and renders accordingly. Output size is fully configurable.
  *
  * Render order is bottom-to-top: layers[0] is the bottom layer.
  */
@@ -14,18 +14,20 @@ import {
   decode,
   PARTS,
   LAYER_ORDER,
-  resolveFrameIndex,
   type PartCategory,
 } from '@pixabots/core'
 import type { CompositorConfig, LayerDef, CanvasSize } from './types.js'
 
-/** Native pixel size of source assets */
-const NATIVE_SIZE = 32
-
 /**
  * Composite a single frame from a full CompositorConfig.
- * Returns a Sharp pipeline (not yet finalized) so the caller can
- * add format-specific options (PNG, WebP, resize, etc.).
+ *
+ * Source assets can be any size. The compositor:
+ *   - Creates a canvas at the source asset's native size
+ *   - Composites all layers onto it
+ *   - Caller then resizes to desired output size
+ *
+ * If source assets have mixed sizes, they are all resized to the
+ * first asset's dimensions (the "native" size).
  */
 export async function compositeFrame(
   loader: AssetLoader,
@@ -38,7 +40,7 @@ export async function compositeFrame(
     ? background
     : { r: 0, g: 0, b: 0, alpha: 0 }
 
-  // Create base canvas
+  // Create base canvas at specified size
   let canvas = sharp({
     create: {
       width: size,
@@ -64,10 +66,11 @@ export async function compositeFrame(
 
     // Load the part image
     let partImage = sharp(filePath)
+    const meta = loader.getPartMeta(filePath)
 
-    // Scale up if needed (nearest-neighbor to preserve pixel art)
-    if (scaleUp && size > NATIVE_SIZE) {
-      partImage = partImage.resize(size, size, { kernel: 'nearest' })
+    // Resize source asset to match canvas if needed
+    if (meta.width !== size || meta.height !== size) {
+      partImage = partImage.resize(size, size, { kernel: 'nearest', fit: 'contain' })
     }
 
     // Apply horizontal flip if needed
@@ -101,13 +104,14 @@ export async function compositeFrame(
 /**
  * High-level: render a pixabot ID to a PNG Buffer.
  *
- * This is the main entry point for batch avatar generation.
+ * Automatically detects source asset size and renders at that native
+ * resolution, then scales to the requested output size.
  */
 export async function renderPixabotToBuffer(
   loader: AssetLoader,
   id: string,
   options: {
-    size?: CanvasSize
+    size?: number
     background?: string
     format?: 'png' | 'webp'
   } = {},
@@ -120,6 +124,9 @@ export async function renderPixabotToBuffer(
 
   const combo = decode(id)
 
+  // Auto-detect native size from source assets
+  const native = loader.detectNativeSize()
+
   // Build layers in render order (bottom → top): top, body, heads, eyes
   const layers: LayerDef[] = LAYER_ORDER.map((cat: PartCategory) => ({
     category: cat,
@@ -127,16 +134,17 @@ export async function renderPixabotToBuffer(
     frameIndex: 0,
   }))
 
+  // Render at native source size
   const config: CompositorConfig = {
-    size: NATIVE_SIZE,
+    size: native.width,
     layers,
     background,
   }
 
-  // Render at native 32×32 first, then scale up
   let pipeline = await compositeFrame(loader, config)
 
-  if (size !== NATIVE_SIZE) {
+  // Scale to output size if different from native
+  if (size !== native.width) {
     pipeline = pipeline.resize(size, size, { kernel: 'nearest' })
   }
 
@@ -153,7 +161,7 @@ export async function batchRenderToFiles(
   loader: AssetLoader,
   ids: string[],
   options: {
-    size?: CanvasSize
+    size?: number
     background?: string
     format?: 'png' | 'webp'
     outputDir: string
