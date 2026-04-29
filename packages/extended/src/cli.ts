@@ -15,6 +15,7 @@ import path from 'node:path'
 import { AssetLoader } from './asset-loader.js'
 import { batchRenderToFiles, compositeAgentFrame } from './compositor.js'
 import { generateGodotTres } from './exporters/godot.js'
+import { generatePixiSpritesheetJSON, generatePixiNativeJSON } from './exporters/pixi.js'
 import { randomId, seededId, isValidId } from '@pixabots/core'
 
 // Resolve paths relative to the monorepo root
@@ -216,6 +217,7 @@ async function cmdSheet(args: Record<string, any>) {
     'frame-size': frameSizeStr,
     'res-prefix': resPrefix,
     padding: padStr,
+    exporter: exporterStr,
   } = args
 
   if (!agentId) {
@@ -267,15 +269,61 @@ async function cmdSheet(args: Record<string, any>) {
 
   if (fs.existsSync(metaPath)) {
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-    const prefix = resPrefix || `res://assets/characters/${agentId}/`
-    const { tresContent, tresFilename } = generateGodotTres(meta, {
-      name: agentId,
-      resourcePrefix: prefix,
-      sheetFilename,
-    })
-    const tresPath = path.join(path.resolve(outputDir), tresFilename)
-    fs.writeFileSync(tresPath, tresContent)
-    console.log(`  Godot: ${tresPath}`)
+    const exporter = exporterStr || 'godot'
+
+    if (exporter === 'godot') {
+      const prefix = resPrefix || `res://assets/characters/${agentId}/`
+      const { tresContent, tresFilename } = generateGodotTres(meta, {
+        name: agentId,
+        resourcePrefix: prefix,
+        sheetFilename,
+      })
+      const tresPath = path.join(path.resolve(outputDir), tresFilename)
+      fs.writeFileSync(tresPath, tresContent)
+      console.log(`  Godot: ${tresPath}`)
+    } else if (exporter === 'pixi') {
+      const { jsonContent, jsonFilename } = generatePixiSpritesheetJSON(meta, {
+        name: agentId,
+        sheetFilename,
+        fps: animFps,
+      })
+      const jsonPath = path.join(path.resolve(outputDir), jsonFilename)
+      fs.writeFileSync(jsonPath, jsonContent)
+      console.log(`  PixiJS: ${jsonPath}`)
+    } else if (exporter === 'pixi-native') {
+      const { jsonContent, jsonFilename } = generatePixiNativeJSON(meta, {
+        name: agentId,
+        sheetFilename,
+        fps: animFps,
+      })
+      const jsonPath = path.join(path.resolve(outputDir), jsonFilename)
+      fs.writeFileSync(jsonPath, jsonContent)
+      console.log(`  PixiJS (native): ${jsonPath}`)
+    } else if (exporter === 'all') {
+      // Generate all exporters
+      const prefix = resPrefix || `res://assets/characters/${agentId}/`
+      const { tresContent, tresFilename } = generateGodotTres(meta, {
+        name: agentId,
+        resourcePrefix: prefix,
+        sheetFilename,
+      })
+      fs.writeFileSync(path.join(path.resolve(outputDir), tresFilename), tresContent)
+      console.log(`  Godot: ${tresFilename}`)
+
+      const { jsonContent: aseJson, jsonFilename: aseName } = generatePixiSpritesheetJSON(meta, {
+        name: agentId, sheetFilename, fps: animFps,
+      })
+      fs.writeFileSync(path.join(path.resolve(outputDir), aseName), aseJson)
+      console.log(`  PixiJS (Aseprite): ${aseName}`)
+
+      const { jsonContent: natJson, jsonFilename: natName } = generatePixiNativeJSON(meta, {
+        name: agentId, sheetFilename, fps: animFps,
+      })
+      fs.writeFileSync(path.join(path.resolve(outputDir), natName), natJson)
+      console.log(`  PixiJS (native): ${natName}`)
+    } else {
+      console.warn(`  Unknown exporter: ${exporter} (available: godot, pixi, pixi-native, all)`)
+    }
   }
 
   console.log(`\nDone! Files generated in ${path.resolve(outputDir)}/`)
@@ -308,6 +356,7 @@ const { positionals, values } = parseArgs({
     'frame-size': { type: 'string' },
     'res-prefix': { type: 'string' },
     padding:    { type: 'string' },
+    exporter:   { type: 'string' },
   },
 })
 
@@ -320,7 +369,7 @@ if (!command || command === 'help' || command === '--help') {
 Commands:
   avatar    Batch render pixabot avatars
   compose   Compose AI agent frame + pixabots part overlays
-  sheet     Generate sprite sheet + Godot .tres from AI agent frames
+  sheet     Generate sprite sheet + exporter JSON from AI agent frames
 
 Usage:
   pixabots-extended avatar --ids 4707,abcd --size 128 --output ./out/
@@ -356,6 +405,7 @@ Options:
   --frame-size     Force frame size in pixels (default: auto-detect)
   --res-prefix     Godot resource path prefix (default: res://assets/characters/{agent}/)
   --padding        Padding between frames in pixels (default: 0)
+  --exporter       Exporter format: godot, pixi, pixi-native, all (default: godot)
 `)
   process.exit(0)
 }

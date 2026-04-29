@@ -41,3 +41,13 @@ export type {
   GodotExportOptions,
   GodotExportResult,
 } from './exporters/godot.js'
+
+// PixiJS Exporter
+export {
+  generatePixiSpritesheetJSON,
+  generatePixiNativeJSON,
+} from './exporters/pixi.js'
+export type {
+  PixiExportOptions,
+  PixiExportResult,
+} from './exporters/pixi.js'
