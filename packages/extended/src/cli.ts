@@ -12,15 +12,17 @@
 import { parseArgs } from 'node:util'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { AssetLoader } from './asset-loader.js'
 import { batchRenderToFiles, compositeAgentFrame } from './compositor.js'
+import { generateGodotTres } from './exporters/godot.js'
 import { randomId, seededId, isValidId } from '@pixabots/core'
 
-// Resolve paths relative to this file's location
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MONOREPO_ROOT = path.resolve(__dirname, '..', '..', '..')
+// Resolve paths relative to the monorepo root
+// Use process.argv[1] (CLI script path) to avoid import.meta issues in CJS builds
+const CLI_DIR = path.dirname(process.argv[1] || __dirname || '.')
+const MONOREPO_ROOT = path.resolve(CLI_DIR, '..', '..', '..')
 const ART_PNG_DIR = path.join(MONOREPO_ROOT, 'art', 'png')
+const ART_EXTENDED_DIR = path.join(MONOREPO_ROOT, 'art', 'png-extended')
 
 // ─── Command: avatar ────────────────────────────────────────────────
 
@@ -203,6 +205,82 @@ async function cmdCompose(args: Record<string, any>) {
   console.log(`\nDone! ${filePath} (${stats.size} bytes)`)
 }
 
+// ─── Command: sheet ──────────────────────────────────────────────
+
+async function cmdSheet(args: Record<string, any>) {
+  const {
+    agent: agentId,
+    state,
+    output: outputDir,
+    fps: fpsStr,
+    'frame-size': frameSizeStr,
+    'res-prefix': resPrefix,
+    padding: padStr,
+  } = args
+
+  if (!agentId) {
+    console.error('Error: --agent is required')
+    process.exit(1)
+  }
+  if (!outputDir) {
+    console.error('Error: --output is required')
+    process.exit(1)
+  }
+
+  const animState = state || 'walk'
+  const animFps = fpsStr ? parseInt(fpsStr) : 8
+  const frameSize = frameSizeStr ? parseInt(frameSizeStr) : undefined
+  const padding = padStr ? parseInt(padStr) : 0
+
+  console.log(`Generating sprite sheet: ${agentId} / ${animState} (fps=${animFps})`)
+
+  // Call Python script for sprite sheet generation (Pillow is faster than Sharp in WSL)
+  const scriptPath = path.resolve(MONOREPO_ROOT, 'scripts/generate_sprite_sheet.py')
+  const pythonBin = path.resolve(MONOREPO_ROOT, '.venv/bin/python')
+
+  const pyArgs = [
+    scriptPath,
+    '--agent-id', agentId,
+    '--state', animState,
+    '--base-dir', ART_EXTENDED_DIR,
+    '--output-dir', path.resolve(outputDir),
+    '--fps', String(animFps),
+  ]
+  if (frameSize) pyArgs.push('--frame-size', String(frameSize))
+  if (padding > 0) pyArgs.push('--padding', String(padding))
+
+  const { execFile } = await import('child_process')
+  const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    execFile(pythonBin, pyArgs, { timeout: 60_000 }, (err, stdout, stderr) => {
+      if (err) reject(err)
+      else resolve({ stdout, stderr })
+    })
+  })
+
+  if (result.stderr) console.error(result.stderr)
+  console.log(result.stdout)
+
+  // Read metadata JSON to generate Godot .tres
+  const metaFilename = `${agentId}_${animState}_sheet.json`
+  const metaPath = path.join(path.resolve(outputDir), metaFilename)
+  const sheetFilename = `${agentId}_${animState}_sheet.png`
+
+  if (fs.existsSync(metaPath)) {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+    const prefix = resPrefix || `res://assets/characters/${agentId}/`
+    const { tresContent, tresFilename } = generateGodotTres(meta, {
+      name: agentId,
+      resourcePrefix: prefix,
+      sheetFilename,
+    })
+    const tresPath = path.join(path.resolve(outputDir), tresFilename)
+    fs.writeFileSync(tresPath, tresContent)
+    console.log(`  Godot: ${tresPath}`)
+  }
+
+  console.log(`\nDone! Files generated in ${path.resolve(outputDir)}/`)
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 const { positionals, values } = parseArgs({
@@ -225,6 +303,11 @@ const { positionals, values } = parseArgs({
     'part-scale':    { type: 'string' },
     'part-offset-x': { type: 'string' },
     'part-offset-y': { type: 'string' },
+    // sheet-specific
+    fps:        { type: 'string' },
+    'frame-size': { type: 'string' },
+    'res-prefix': { type: 'string' },
+    padding:    { type: 'string' },
   },
 })
 
@@ -237,6 +320,7 @@ if (!command || command === 'help' || command === '--help') {
 Commands:
   avatar    Batch render pixabot avatars
   compose   Compose AI agent frame + pixabots part overlays
+  sheet     Generate sprite sheet + Godot .tres from AI agent frames
 
 Usage:
   pixabots-extended avatar --ids 4707,abcd --size 128 --output ./out/
@@ -245,6 +329,9 @@ Usage:
 
   pixabots-extended compose --agent cyber-catgirl --parts top:horns,eyes:glasses --output ./out/
   pixabots-extended compose --agent cyber-catgirl --state walk --direction right --frame 2 --parts top:antenna --part-scale 0.5 --output ./out/
+
+  pixabots-extended sheet --agent cyber-catgirl --output ./out/
+  pixabots-extended sheet --agent cyber-catgirl --state walk --fps 10 --frame-size 256 --output ./out/
 
 Options:
   --ids, -i       Comma-separated pixabot IDs
@@ -264,6 +351,11 @@ Options:
   --part-scale    Override scale factor for overlays
   --part-offset-x X offset for all overlays
   --part-offset-y Y offset for all overlays
+
+  --fps            Animation FPS for sheet (default: 8)
+  --frame-size     Force frame size in pixels (default: auto-detect)
+  --res-prefix     Godot resource path prefix (default: res://assets/characters/{agent}/)
+  --padding        Padding between frames in pixels (default: 0)
 `)
   process.exit(0)
 }
@@ -275,6 +367,11 @@ if (command === 'avatar') {
   })
 } else if (command === 'compose') {
   cmdCompose(values).catch(err => {
+    console.error('Fatal:', err)
+    process.exit(1)
+  })
+} else if (command === 'sheet') {
+  cmdSheet(values).catch(err => {
     console.error('Fatal:', err)
     process.exit(1)
   })

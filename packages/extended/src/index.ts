@@ -23,3 +23,21 @@ export {
   batchRenderToFiles,
   compositeAgentFrame,
 } from './compositor.js'
+
+// Sprite Sheet
+export {
+  generateSpriteSheet,
+} from './sprite-sheet.js'
+export type {
+  SpriteSheetMeta,
+  GenerateSheetOptions,
+} from './sprite-sheet.js'
+
+// Godot Exporter
+export {
+  generateGodotTres,
+} from './exporters/godot.js'
+export type {
+  GodotExportOptions,
+  GodotExportResult,
+} from './exporters/godot.js'
