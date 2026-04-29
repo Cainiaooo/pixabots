@@ -9,6 +9,8 @@ export type {
   CompositorConfig,
   PartAsset,
   AvatarExportConfig,
+  PartOverlay,
+  AgentComposeConfig,
 } from './types.js'
 
 // Asset Loader
@@ -19,4 +21,5 @@ export {
   compositeFrame,
   renderPixabotToBuffer,
   batchRenderToFiles,
+  compositeAgentFrame,
 } from './compositor.js'

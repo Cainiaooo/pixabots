@@ -35,6 +35,44 @@ export class AssetLoader {
   }
 
   /**
+   * Resolve a single agent frame from art/png-extended.
+   * Layout: {partsDir}/../png-extended/{state}/{direction}/{agentId}/walk-{NN}.png
+   */
+  resolveAgentFrame(
+    agentId: string,
+    state: string,
+    direction: string,
+    frameIndex: number,
+  ): string | null {
+    const extendedDir = path.join(this.partsDir, '..', 'png-extended')
+    const frameDir = path.join(extendedDir, state, direction, agentId)
+    if (!fs.existsSync(frameDir)) return null
+
+    const frames = fs.readdirSync(frameDir)
+      .filter(f => f.endsWith('.png'))
+      .sort()
+
+    if (frameIndex >= 0 && frameIndex < frames.length) {
+      return path.resolve(path.join(frameDir, frames[frameIndex]))
+    }
+    if (frames.length > 0) return path.resolve(path.join(frameDir, frames[0]))
+    return null
+  }
+
+  /**
+   * List all available agent IDs under a given state/direction.
+   */
+  listAgents(state: string = 'walk', direction: string = 'down'): string[] {
+    const extendedDir = path.join(this.partsDir, '..', 'png-extended')
+    const dir = path.join(extendedDir, state, direction)
+    if (!fs.existsSync(dir)) return []
+    return fs.readdirSync(dir).filter(e => {
+      const p = path.join(dir, e)
+      return fs.statSync(p).isDirectory()
+    })
+  }
+
+  /**
    * Resolve file paths for a given part across all its frames.
    * Returns an array of absolute file paths, one per frame.
    */

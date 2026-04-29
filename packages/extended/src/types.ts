@@ -62,3 +62,41 @@ export interface AvatarExportConfig {
   /** Optional seed for deterministic random generation (if ids are 'random:N') */
   seed?: string
 }
+
+/** A single pixabots part overlay for agent compositing */
+export interface PartOverlay {
+  /** Part category (eyes, heads, body, top) */
+  category: string
+  /** Part index within the category */
+  partIndex: number
+  /** Animation frame index (default 0) */
+  frameIndex?: number
+  /** Override offset X (pixels, relative to canvas) */
+  offsetX?: number
+  /** Override offset Y (pixels, relative to canvas) */
+  offsetY?: number
+  /** Flip horizontally */
+  flipH?: boolean
+  /** Override scale factor (defaults to auto: agentSize / partNativeSize) */
+  scale?: number
+  /** Opacity 0-1 (default 1) */
+  opacity?: number
+}
+
+/** Configuration for compositing an AI agent frame + pixabots overlays */
+export interface AgentComposeConfig {
+  /** Agent ID (e.g. "cyber-catgirl") */
+  agentId: string
+  /** Animation state (e.g. "walk") */
+  state: string
+  /** Direction (down, up, left, right) */
+  direction: string
+  /** Frame index within the animation (0-based) */
+  frameIndex: number
+  /** Pixabots parts to overlay on top of the agent frame */
+  overlays: PartOverlay[]
+  /** Output size (defaults to agent frame native size) */
+  outputSize?: number
+  /** Background color (default: transparent) */
+  background?: string
+}
