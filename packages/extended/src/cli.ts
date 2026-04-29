@@ -218,6 +218,8 @@ async function cmdSheet(args: Record<string, any>) {
     'res-prefix': resPrefix,
     padding: padStr,
     exporter: exporterStr,
+    layout: layoutStr,
+    states: statesStr,
   } = args
 
   if (!agentId) {
@@ -233,8 +235,10 @@ async function cmdSheet(args: Record<string, any>) {
   const animFps = fpsStr ? parseInt(fpsStr) : 8
   const frameSize = frameSizeStr ? parseInt(frameSizeStr) : undefined
   const padding = padStr ? parseInt(padStr) : 0
+  const layout = layoutStr || 'directions'
+  const statesList = statesStr ? String(statesStr).split(',').map(s => s.trim()).filter(Boolean) : undefined
 
-  console.log(`Generating sprite sheet: ${agentId} / ${animState} (fps=${animFps})`)
+  console.log(`Generating sprite sheet: ${agentId} (layout=${layout}, fps=${animFps})`)
 
   // Call Python script for sprite sheet generation (Pillow is faster than Sharp in WSL)
   const scriptPath = path.resolve(MONOREPO_ROOT, 'scripts/generate_sprite_sheet.py')
@@ -243,13 +247,18 @@ async function cmdSheet(args: Record<string, any>) {
   const pyArgs = [
     scriptPath,
     '--agent-id', agentId,
-    '--state', animState,
     '--base-dir', ART_EXTENDED_DIR,
     '--output-dir', path.resolve(outputDir),
     '--fps', String(animFps),
+    '--layout', layout,
   ]
+  // Only pass --state for directions layout
+  if (layout === 'directions') {
+    pyArgs.push('--state', animState)
+  }
   if (frameSize) pyArgs.push('--frame-size', String(frameSize))
   if (padding > 0) pyArgs.push('--padding', String(padding))
+  if (statesList && statesList.length > 0) pyArgs.push('--states', ...statesList)
 
   const { execFile } = await import('child_process')
   const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
@@ -262,10 +271,11 @@ async function cmdSheet(args: Record<string, any>) {
   if (result.stderr) console.error(result.stderr)
   console.log(result.stdout)
 
-  // Read metadata JSON to generate Godot .tres
-  const metaFilename = `${agentId}_${animState}_sheet.json`
+  // Read metadata JSON to generate exporter output
+  const metaBasename = layout === 'states' ? `${agentId}_states` : `${agentId}_${animState}`
+  const metaFilename = `${metaBasename}_sheet.json`
   const metaPath = path.join(path.resolve(outputDir), metaFilename)
-  const sheetFilename = `${agentId}_${animState}_sheet.png`
+  const sheetFilename = `${metaBasename}_sheet.png`
 
   if (fs.existsSync(metaPath)) {
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
@@ -357,6 +367,8 @@ const { positionals, values } = parseArgs({
     'res-prefix': { type: 'string' },
     padding:    { type: 'string' },
     exporter:   { type: 'string' },
+    layout:     { type: 'string' },
+    states:     { type: 'string' },
   },
 })
 
@@ -381,6 +393,7 @@ Usage:
 
   pixabots-extended sheet --agent cyber-catgirl --output ./out/
   pixabots-extended sheet --agent cyber-catgirl --state walk --fps 10 --frame-size 256 --output ./out/
+  pixabots-extended sheet --agent claude --layout states --states idle,coding,thinking --exporter pixi --output ./out/
 
 Options:
   --ids, -i       Comma-separated pixabot IDs
@@ -406,6 +419,8 @@ Options:
   --res-prefix     Godot resource path prefix (default: res://assets/characters/{agent}/)
   --padding        Padding between frames in pixels (default: 0)
   --exporter       Exporter format: godot, pixi, pixi-native, all (default: godot)
+  --layout         Sheet layout: directions (rows=directions) or states (rows=animation states)
+  --states         Comma-separated state names for states layout (e.g. idle,coding,thinking)
 `)
   process.exit(0)
 }

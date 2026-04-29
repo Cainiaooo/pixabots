@@ -65,18 +65,17 @@ export function generatePixiSpritesheetJSON(
   const animFps = customFps ?? meta.fps
 
   // Detect layout from meta:
-  //   - directions layout: meta.directions has multiple entries (down/up/left/right)
-  //   - states layout: meta.directions has state names (idle/coding/thinking/error)
-  const isDirectionLayout = meta.directions.length > 1 && meta.state !== 'states'
-  const isStatesLayout = meta.state === 'states' ||
-    meta.directions.some(d => ['idle', 'coding', 'thinking', 'error', 'done'].includes(d))
+  //   - directions layout: meta.layout === "directions" or meta.directions exists
+  //   - states layout: meta.layout === "states" or meta.states exists
+  const isStatesLayout = meta.layout === 'states' || 'states' in meta ||
+    meta.directions?.some((d: string) => ['idle', 'coding', 'thinking', 'error', 'done'].includes(d))
 
   // Build frames array (Aseprite JSON Hash format)
   const frames: Record<string, PixiFrame> = {}
   const animations: Record<string, number[]> = {}
 
-  // Determine row labels
-  const rowLabels = meta.directions
+  // Determine row labels from meta
+  const rowLabels = meta.states || meta.directions || []
 
   for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
     const label = rowLabels[rowIdx]
@@ -153,12 +152,12 @@ export function generatePixiNativeJSON(
   const jsonFilename = `${name}_spritesheet.json`
   const animFps = customFps ?? meta.fps
 
-  const isStatesLayout = meta.state === 'states' ||
-    meta.directions.some(d => ['idle', 'coding', 'thinking', 'error', 'done'].includes(d))
+  const isStatesLayout = meta.layout === 'states' || 'states' in meta ||
+    meta.directions?.some((d: string) => ['idle', 'coding', 'thinking', 'error', 'done'].includes(d))
 
   const frames: Record<string, PixiNativeFrame> = {}
   const animations: Record<string, PixiNativeAnim> = {}
-  const rowLabels = meta.directions
+  const rowLabels = meta.states || meta.directions || []
 
   for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
     const label = rowLabels[rowIdx]

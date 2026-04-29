@@ -64,24 +64,26 @@ export function generateGodotTres(
   const texPath = resourcePrefix + sheetFilename
 
   // Build animation entries for each direction
+  const rowLabels = meta.directions || meta.states || []
+  const animState = meta.state || ''
   const animNames: string[] = []
   const animSpeeds: number[] = []
   const animLoops: boolean[] = []
   const animFramesList: string[] = []
 
-  for (let rowIdx = 0; rowIdx < meta.directions.length; rowIdx++) {
-    const dir = meta.directions[rowIdx]
-    const animName = `${meta.state}_${dir}`
+  for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
+    const label = rowLabels[rowIdx]
+    const animName = animState ? `${animState}_${label}` : label
 
-    // Collect frame rects for this direction
-    const dirFrameEntries = meta.frames.filter(
-      f => f.direction === dir,
-    ).sort((a, b) => a.frameIndex - b.frameIndex)
+    // Collect frame rects for this row
+    const rowFrameEntries = meta.frames
+      .filter(f => f.row === rowIdx)
+      .sort((a, b) => a.frameIndex - b.frameIndex)
 
     // Build the frames array for this animation
     // Each frame is: duration, tex_path, region (x, y, w, h)
     const frameLines: string[] = []
-    for (const frame of dirFrameEntries) {
+    for (const frame of rowFrameEntries) {
       frameLines.push(
         `SubResource("AtlasTexture_${animName}_${frame.frameIndex}")`,
       )
@@ -97,14 +99,14 @@ export function generateGodotTres(
   const subResources: string[] = []
   let subId = 1
 
-  for (let rowIdx = 0; rowIdx < meta.directions.length; rowIdx++) {
-    const dir = meta.directions[rowIdx]
-    const animName = `${meta.state}_${dir}`
-    const dirFrames = meta.frames.filter(
-      f => f.direction === dir,
-    ).sort((a, b) => a.frameIndex - b.frameIndex)
+  for (let rowIdx = 0; rowIdx < rowLabels.length; rowIdx++) {
+    const label = rowLabels[rowIdx]
+    const animName = animState ? `${animState}_${label}` : label
+    const rowFrames = meta.frames
+      .filter(f => f.row === rowIdx)
+      .sort((a, b) => a.frameIndex - b.frameIndex)
 
-    for (const frame of dirFrames) {
+    for (const frame of rowFrames) {
       subResources.push(
         `[sub_resource type="AtlasTexture" id="AtlasTexture_${animName}_${frame.frameIndex}"]`,
         `atlas = ExtResource("1_${name}")`,

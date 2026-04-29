@@ -16,30 +16,39 @@ import { AssetLoader } from './asset-loader.js'
 
 export interface SpriteSheetMeta {
   /** Agent ID */
-  agentId: string
-  /** Animation state */
-  state: string
+  agent: string
+  /** @deprecated Use agent */
+  agentId?: string
+  /** Layout mode: "directions" or "states" */
+  layout?: string
+  /** Animation state (directions layout only) */
+  state?: string
   /** Dimensions */
   sheetWidth: number
   sheetHeight: number
   /** Single frame size */
   frameWidth: number
   frameHeight: number
-  /** Number of columns (frames per direction) */
+  /** Padding between frames */
+  padding?: number
+  /** Number of columns (frames per row) */
   columns: number
-  /** Number of rows (directions) */
+  /** Number of rows */
   rows: number
-  /** Direction order in rows */
-  directions: string[]
+  /** Direction order (directions layout) */
+  directions?: string[]
+  /** State order (states layout) */
+  states?: string[]
   /** Frames per direction */
-  framesPerDirection: number
+  framesPerDirection?: number
   /** FPS for playback */
   fps: number
   /** Per-frame metadata */
   frames: Array<{
     row: number
     col: number
-    direction: string
+    direction?: string
+    state?: string
     frameIndex: number
     x: number
     y: number
@@ -122,8 +131,8 @@ export async function generateSpriteSheet(
 
   // Build metadata
   const meta: SpriteSheetMeta = {
-    agentId,
-    state,
+    agent: agentId,
+    agentId, // backward compat
     sheetWidth: sheetW,
     sheetHeight: sheetH,
     frameWidth: fw,
