@@ -1,0 +1,35 @@
+{
+  "name": "@pixabots/extended",
+  "version": "0.1.0",
+  "description": "Extended rendering pipeline for Pixabots: batch avatars, sprite sheets, multi-direction support",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "pixabots-extended": "./dist/cli.js"
+  },
+  "files": ["dist", "README.md", "cli"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "pnpm run build && node test/smoke.mjs",
+    "cli": "pnpm run build && node dist/cli.js"
+  },
+  "dependencies": {
+    "@pixabots/core": "workspace:*",
+    "sharp": "^0.34.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

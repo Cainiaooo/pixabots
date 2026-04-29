@@ -16,3 +16,7 @@ pnpm-debug.log*
 *.psd
 .source
 .claude/
+
+# test output
+test-output/
+test-pixabot*.png
